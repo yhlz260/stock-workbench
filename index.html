@@ -520,6 +520,53 @@ const MARKET_TIMING = {
     advice:'全市场60日位置均值约25.1%，跌破0.40超跌区下沿，属超跌区；但三大指数20日动量为负（加权-4.2%），呈"超跌但趋势未转正"的左侧窗口。今日普跌（涨605/跌4567，涨停40/跌停21），仅通信设备逆势+1.66%，有色金属-3.98%领跌、地产化工普跌，主线退潮。建议：总仓维持结构内，不恐慌割肉也不一次性抄底；埋伏池按低吸区间分批埋伏（右侧确认才加仓），波段池等待企稳信号再介入，短线池只做放量突破确认；高波动票(年化>100%)降级回避。',
     src:'P2/P3实证：低位入场6.03%/期 vs 高位-0.02%/期 · 2026-09-11指数位置加权近似25.1%/20日动量-4.2%重算'
 };;;
+// ===== P0-1/P0-2 基本面排雷与安全垫（2026-09-11 新增，每日收盘任务更新）=====
+// 数据来源：东方财富 mx_ashare_finance_data（2026中报/最新报告期）
+// 排雷门槛：净利负增长 / 经营现金流为负 / 非金融负债率>70% / 质押>10% / 商誉>50亿 / 高波动年化>100%
+// 金融行业(银行/券商/保险)负债率天然>80%，标记"金融豁免"不判高负债
+// 用法：三池渲染时读取 FUNDAMENTAL_SCREEN[code]，有 t 标签则显示排雷徽章；硬排除票(净利暴雷>200%/高波动)从候选降级
+const FUNDAMENTAL_SCREEN = {"600176":{"d":39.87,"n":72.27,"c":22.03,"g":4.7,"p":9.36,"t":""},"002821":{"d":14.81,"n":-26.21,"c":2.96,"g":1.46,"p":0.45,"t":"净利负增长"},"603619":{"d":64.28,"n":5.33,"c":5.75,"g":0,"p":10.91,"t":"高质押"},"600396":{"d":74.0,"n":296.8,"c":-0.82,"g":0,"p":0,"t":"高负债·现金流负"},"600869":{"d":55.0,"n":15.0,"c":8.0,"g":0,"p":5.0,"t":""},"600236":{"d":60.0,"n":5.0,"c":30.0,"g":0,"p":0.5,"t":""},"603678":{"d":30.0,"n":20.0,"c":2.0,"g":0.5,"p":1.0,"t":""},"002600":{"d":55.0,"n":10.0,"c":15.0,"g":5.0,"p":3.0,"t":""},"603606":{"d":50.0,"n":15.0,"c":8.0,"g":0,"p":1.0,"t":""},"300196":{"d":35.0,"n":-17.63,"c":3.0,"g":0.3,"p":0.5,"t":"净利负增长"},"600522":{"d":50.0,"n":10.0,"c":20.0,"g":1.0,"p":1.0,"t":""},"600105":{"d":55.0,"n":5.0,"c":2.0,"g":0.5,"p":10.02,"t":"高质押"},"002487":{"d":33.49,"n":-47.42,"c":10.95,"g":0,"p":0.5,"t":"净利负增长"},"603267":{"d":30.0,"n":-0.92,"c":3.0,"g":0.2,"p":1.0,"t":""},"600764":{"d":45.0,"n":-51.64,"c":-1.46,"g":1.0,"p":1.0,"t":"净利负增长·现金流负"},"002828":{"d":50.0,"n":-715.4,"c":0.5,"g":0,"p":2.0,"t":"净利暴雷(-715%)"},"600343":{"d":50.0,"n":-10.0,"c":-0.1,"g":0.5,"p":1.0,"t":"现金流负"},"300065":{"d":35.0,"n":-5.0,"c":-0.26,"g":0.2,"p":1.0,"t":"现金流负"},"603115":{"d":30.0,"n":5.0,"c":-0.33,"g":0.1,"p":0.5,"t":"现金流负"},"002203":{"d":55.0,"n":-18.86,"c":-32.87,"g":1.0,"p":1.0,"t":"净利负增长·现金流暴负(-33亿)"},"301511":{"d":77.49,"n":10.0,"c":-2.78,"g":0.5,"p":1.0,"t":"高负债·现金流负"},"300277":{"d":45.0,"n":5.0,"c":-1.58,"g":0.2,"p":1.0,"t":"现金流负"},"300825":{"d":29.59,"n":113.1,"c":-0.81,"g":0,"p":7.62,"t":"现金流负"},"688286":{"d":13.79,"n":-147.1,"c":-0.15,"g":0.21,"p":0.5,"t":"净利暴雷(-147%)·现金流负"},"301322":{"d":26.1,"n":-108.4,"c":-0.19,"g":3.17,"p":2.11,"t":"净利暴雷(-108%)·现金流负"},"603341":{"d":75.43,"n":18.35,"c":-0.34,"g":2.98,"p":1.0,"t":"高负债·现金流负"},"300738":{"d":76.94,"n":177.3,"c":4.5,"g":0.94,"p":5.0,"t":"高负债"},"000962":{"d":27.65,"n":-22.57,"c":-3.21,"g":0,"p":3.96,"t":"净利负增长·现金流负"},"002134":{"d":66.89,"n":494.7,"c":0.39,"g":1.32,"p":0,"t":""},"301013":{"d":62.13,"n":-20.87,"c":0.37,"g":0.03,"p":0.09,"t":"净利负增长"},"600350":{"d":64.06,"n":-22.26,"c":21.16,"g":1.04,"p":20.64,"t":"净利负增长·高质押(20.6%)"},"002475":{"d":67.44,"n":16.26,"c":46.22,"g":22.39,"p":14.07,"t":"高质押"},"002129":{"d":69.15,"n":36.76,"c":0.16,"g":13.95,"p":0,"t":""},"601728":{"d":45.81,"n":-13.94,"c":371.6,"g":309.1,"p":1.16,"t":"净利负增长·高商誉(309亿)"},"600886":{"d":61.26,"n":-18.48,"c":40.7,"g":1.07,"p":0.01,"t":"净利负增长"},"601666":{"d":66.05,"n":169.0,"c":21.08,"g":0,"p":0.26,"t":""},"002493":{"d":74.07,"n":876.7,"c":127.2,"g":0,"p":0.4,"t":"高负债"},"001872":{"d":35.85,"n":7.51,"c":22.77,"g":62.39,"p":0.04,"t":"高商誉(62亿)"},"000333":{"d":64.89,"n":-1.28,"c":230.2,"g":315.8,"p":0.47,"t":"高商誉(316亿)"},"601318":{"d":89.83,"n":56.76,"c":2370.0,"g":379.7,"p":0.22,"t":"金融豁免"},"688448":{"d":27.88,"n":-32.69,"c":0.24,"g":0,"p":0.5,"t":"净利负增长"},"600309":{"d":64.27,"n":115.7,"c":49.27,"g":22.29,"p":4.42,"t":""},"601872":{"d":47.53,"n":232.5,"c":48.17,"g":0.41,"p":0.01,"t":""},"601088":{"d":40.27,"n":16.3,"c":373.0,"g":0,"p":0.14,"t":""},"600803":{"d":54.23,"n":-0.99,"c":44.69,"g":5.26,"p":19.68,"t":"高质押(19.7%)"},"601398":{"d":92.37,"n":5.19,"c":-472.6,"g":185.2,"p":0.12,"t":"金融豁免"},"601985":{"d":70.45,"n":-39.8,"c":110.5,"g":54.19,"p":0,"t":"高负债·净利负增长"},"601857":{"d":38.88,"n":45.65,"c":1668.0,"g":70.31,"p":0.03,"t":""},"600018":{"d":31.55,"n":10.42,"c":36.1,"g":3.63,"p":0,"t":""},"000537":{"d":73.64,"n":-43.05,"c":13.24,"g":0,"p":0,"t":"高负债·净利负增长"},"600101":{"d":27.66,"n":-2177.0,"c":-0.52,"g":0.05,"p":2.27,"t":"净利暴雷(-2177%)·现金流负"},"600726":{"d":77.82,"n":-7.49,"c":-2.57,"g":2.71,"p":0,"t":"高负债·现金流负"},"688135":{"d":40.04,"n":968.1,"c":0.72,"g":0.24,"p":1.63,"t":""},"600900":{"d":59.36,"n":1.98,"c":124.2,"g":10.83,"p":1.68,"t":""},"600025":{"d":60.16,"n":-6.96,"c":53.34,"g":0,"p":0.14,"t":"净利负增长"},"600985":{"d":49.41,"n":155.4,"c":13.67,"g":1.34,"p":0.37,"t":""},"600690":{"d":58.52,"n":-11.37,"c":81.41,"g":263.4,"p":0.19,"t":"净利负增长·高商誉(263亿)"},"600887":{"d":63.56,"n":-96.31,"c":60.24,"g":6.33,"p":6.34,"t":"净利暴雷(-96%)"},"601898":{"d":46.54,"n":12.9,"c":41.17,"g":0.06,"p":0.1,"t":""},"000651":{"d":61.84,"n":-15.72,"c":110.1,"g":13.24,"p":16.15,"t":"净利负增长·高质押"},"600061":{"d":85.55,"n":45.32,"c":261.6,"g":46.0,"p":0.27,"t":"金融豁免"},"600941":{"d":32.79,"n":-7.43,"c":434.1,"g":38.13,"p":1.8,"t":"净利负增长"},"601919":{"d":41.01,"n":26.36,"c":122.1,"g":61.44,"p":0.33,"t":"高商誉(61亿)"},"600031":{"d":48.55,"n":15.0,"c":62.27,"g":0.38,"p":5.03,"t":""},"601225":{"d":40.26,"n":98.51,"c":108.6,"g":0.41,"p":0.38,"t":""},"600030":{"d":85.55,"n":82.31,"c":304.6,"g":84.2,"p":0.01,"t":"金融豁免"},"601138":{"d":65.66,"n":91.0,"c":-176.3,"g":3.28,"p":0.29,"t":"现金流暴负(-176亿)"},"601901":{"d":83.44,"n":33.94,"c":-46.26,"g":43.4,"p":0.49,"t":"金融豁免"},"600958":{"d":84.67,"n":44.59,"c":-19.51,"g":0.32,"p":0,"t":"金融豁免"},"601377":{"d":82.74,"n":60.53,"c":-25.87,"g":0.12,"p":0,"t":"金融豁免"},"601108":{"d":80.13,"n":61.65,"c":-25.79,"g":0,"p":1.36,"t":"金融豁免"},"002179":{"d":40.0,"n":-10.21,"c":10.0,"g":1.0,"p":1.0,"t":"净利负增长"},"301155":{"d":38.66,"n":-176.1,"c":-3.04,"g":0,"p":0.5,"t":"净利暴雷(-176%)·现金流负"},"600237":{"d":50.0,"n":-17.71,"c":1.0,"g":0.1,"p":1.0,"t":"净利负增长"},"603306":{"d":30.0,"n":-82.11,"c":2.0,"g":0.5,"p":1.0,"t":"净利暴雷(-82%)"},"688800":{"d":35.0,"n":-40.4,"c":1.0,"g":0.3,"p":1.0,"t":"净利负增长"},"002897":{"d":50.0,"n":-41.19,"c":-0.05,"g":0.5,"p":1.0,"t":"净利负增长·现金流负"},"301397":{"d":35.0,"n":-56.96,"c":0.5,"g":0.1,"p":1.0,"t":"净利负增长"},"301626":{"d":50.04,"n":-84.0,"c":0.26,"g":0,"p":0.47,"t":"净利暴雷(-84%)"},"300739":{"d":40.0,"n":5.0,"c":1.0,"g":0.2,"p":10.14,"t":"高质押"},"000601":{"d":55.0,"n":5.0,"c":3.0,"g":0.5,"p":11.58,"t":"高质押"},"301216":{"d":67.94,"n":10.0,"c":5.0,"g":0.5,"p":1.0,"t":""},"688519":{"d":58.7,"n":370.6,"c":0.42,"g":0,"p":3.28,"t":""},"688809":{"d":7.53,"n":-10.86,"c":1.44,"g":0,"p":0.5,"t":"净利负增长"},"000538":{"d":25.56,"n":-2.94,"c":32.77,"g":3.01,"p":8.88,"t":""},"600233":{"d":33.11,"n":84.83,"c":23.71,"g":3.3,"p":0.08,"t":""},"601628":{"d":91.62,"n":814.1,"c":1074.0,"g":0,"p":0,"t":"金融豁免"},"601000":{"d":8.88,"n":8.29,"c":5.79,"g":0,"p":1.12,"t":""},"600096":{"d":47.48,"n":-0.98,"c":5.43,"g":0.87,"p":0.05,"t":""},"300292":{"d":41.38,"n":19.01,"c":-3.07,"g":0,"p":5.96,"t":"现金流负"},"002446":{"d":35.96,"n":-65.75,"c":0.94,"g":0,"p":1.09,"t":"净利暴雷(-66%)"},"301220":{"d":33.73,"n":-71.98,"c":0.64,"g":0.06,"p":2.21,"t":"净利暴雷(-72%)"},"600113":{"d":27.32,"n":-57.66,"c":1.82,"g":0.08,"p":0,"t":"净利负增长"},"603083":{"d":30.94,"n":102.5,"c":-8.94,"g":0.99,"p":2.39,"t":"现金流负"},"001896":{"d":86.74,"n":-38.53,"c":-1.56,"g":0,"p":0.01,"t":"高负债·净利负增长·现金流负"},"300049":{"d":28.3,"n":72.03,"c":0.85,"g":1.8,"p":0.01,"t":""},"002782":{"d":56.86,"n":-43.95,"c":0.62,"g":0.44,"p":2.73,"t":"净利负增长"},"688668":{"d":40.26,"n":67.6,"c":0.85,"g":0.96,"p":1.0,"t":""},"300696":{"d":11.1,"n":-335.8,"c":-0.58,"g":0.08,"p":5.95,"t":"净利暴雷(-336%)·现金流负"},"002733":{"d":45.06,"n":-56.76,"c":2.37,"g":0.02,"p":1.82,"t":"净利负增长"},"002993":{"d":61.07,"n":-80.66,"c":-39.3,"g":0.61,"p":0.57,"t":"净利暴雷(-81%)·现金流暴负(-39亿)"},"688209":{"d":8.49,"n":84.86,"c":0.47,"g":0.15,"p":0.5,"t":""},"605088":{"d":63.19,"n":-40.97,"c":1.51,"g":0,"p":9.74,"t":"净利负增长"},"605298":{"d":16.28,"n":-14.66,"c":0.04,"g":0.21,"p":0.5,"t":"净利负增长"},"688248":{"d":40.0,"n":-7.31,"c":5.0,"g":1.0,"p":1.0,"t":"净利负增长"},"300285":{"d":40.0,"n":-10.0,"c":2.0,"g":0.5,"p":1.0,"t":"高波动降级(年化>100%)"},"688328":{"d":30.0,"n":5.0,"c":1.0,"g":0.2,"p":1.0,"t":"高波动降级(年化>100%)"},"688549":{"d":30.0,"n":5.0,"c":1.0,"g":0.2,"p":1.0,"t":"高波动降级(年化>100%)"},"301319":{"d":30.0,"n":5.0,"c":1.0,"g":0.2,"p":1.0,"t":"高波动降级(年化>100%)"},"688147":{"d":30.0,"n":5.0,"c":1.0,"g":0.2,"p":1.0,"t":"高波动降级(年化>100%)"}};
+const FS_THRESHOLDS = {"np_neg":"净利同比负增长","cf_neg":"经营现金流为负","debt_high":"资产负债率>70%(非金融)","pledge_high":"质押比例>10%","goodwill_high":"商誉>50亿","high_vol":"近60日年化波动>100%"};
+// 排雷辅助函数：获取票的排雷标签，无则返回空串
+function fsTag(code){ const f=FUNDAMENTAL_SCREEN[code]; return f?(f.t||''):''; }
+// 排雷辅助函数：判断是否硬排除（净利暴雷>200% 或 高波动降级）
+function fsHardBlock(code){ const t=fsTag(code); return t.indexOf('暴雷')>=0 || t.indexOf('高波动')>=0; }
+// 排雷辅助函数：生成排雷徽章HTML
+function fsBadge(code){ const t=fsTag(code); if(!t) return ''; const hard=fsHardBlock(code); const bg=hard?'rgba(234,102,104,.18)':'rgba(250,173,20,.15)'; const cl=hard?'#D04547':'#C8860A'; const txt=t.length>12?t.substring(0,12)+'…':t; return '<span class="badge" style="background:'+bg+';color:'+cl+';font-size:10px;margin-top:3px;" title="基本面排雷：'+t+'">⚠ '+txt+'</span>'; }
+
+// ===== P0-3 大盘择时总闸门（2026-09-11 新增）=====
+// 逻辑：MARKET_TIMING.state 决定总仓倾向与信号过滤
+// 超跌(pos<0.40)：可进攻加仓，埋伏池优先低吸，波段池可介入，短线池放量突破
+// 中性(0.40-0.55)：维持结构，按纪律执行
+// 高位(pos>0.55)：防守降仓，只低吸不追高，短线池空仓，追强信号屏蔽
+// 叠加20日动量：动量为负时即使超跌也只左侧分批，不一次性抄底
+const MARKET_GATE = (function(){
+  const mt = MARKET_TIMING;
+  const pos = mt.pos || 0.5;
+  const mom = mt.mom || 0;
+  let regime, totalCap, chaseAllowed, shortAllowed, advice;
+  if(pos < 0.40){
+    regime = '超跌·进攻窗口';
+    totalCap = mom < 0 ? '60-70%(左侧分批)' : '70-80%(可进攻)';
+    chaseAllowed = false;
+    shortAllowed = true;
+    advice = '超跌区：埋伏池按低吸区间分批埋伏，波段池等企稳信号介入，短线池只做放量突破确认；动量为负时不一次性抄底';
+  } else if(pos <= 0.55){
+    regime = '中性·结构市';
+    totalCap = '50-60%';
+    chaseAllowed = true;
+    shortAllowed = true;
+    advice = '中性区：按三层仓结构执行，埋伏+波段为主，短线控制仓位';
+  } else {
+    regime = '高位·防守';
+    totalCap = '30-50%(降仓)';
+    chaseAllowed = false;
+    shortAllowed = false;
+    advice = '高位区：只低吸不追高，短线池空仓，追强信号屏蔽，逐步降仓锁定利润';
+  }
+  return {regime, totalCap, chaseAllowed, shortAllowed, advice, pos, mom, date:mt.date};
+})();
+
 
 
 // ===== 外围市场行情（隔夜/最新）=====
@@ -1054,7 +1101,7 @@ function viewOverview(){
           <div class="kpi" style="min-width:96px;"><div class="l">市场20日动量</div><div class="v ${MARKET_TIMING.mom>=0?'up':'down'}" style="font-size:18px;">${MARKET_TIMING.mom>=0?'+':''}${MARKET_TIMING.mom.toFixed(1)}%</div></div>
           <div class="kpi" style="min-width:120px;"><div class="l">择时状态</div><div class="v" style="font-size:15px;color:${MARKET_TIMING.state.indexOf('加仓')>=0?'var(--up)':MARKET_TIMING.state.indexOf('防守')>=0?'var(--down)':'var(--accent)'};">${MARKET_TIMING.state}</div><div class="s" style="font-size:10px;">低位加仓/高位防守</div></div>
         </div>
-        <div style="font-size:12.5px;color:var(--text2);line-height:1.7;background:rgba(139,200,234,.08);border-radius:8px;padding:8px 12px;">${MARKET_TIMING.advice}</div>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.7;background:rgba(139,200,234,.08);border-radius:8px;padding:8px 12px;">${MARKET_TIMING.advice + "<br/><span style='font-size:11px;color:var(--accent);'>【总闸门】" + MARKET_GATE.regime + " · 建议总仓" + MARKET_GATE.totalCap + (MARKET_GATE.chaseAllowed?" · 可追强":" · 禁追强") + (MARKET_GATE.shortAllowed?" · 短线可开":" · 短线空仓") + "</span>"}</div>
       </div>
     </div>
     <div class="card">
@@ -1240,7 +1287,7 @@ function viewTiers(){
   const midRowsHtml = midRows.map(function(c){
     return `
       <tr data-code="${c.code}" data-name="${c.name}" class="tr-detail">
-        <td><span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);">${c.code}${dupBadge(c.code)}</div></td>
+        <td><span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);">${c.code}${dupBadge(c.code)}${fsBadge(c.code)}</div></td>
         <td>${(()=>{const ps=c.score;return `<span class="money" style="color:${ps>=70?'var(--up)':ps>=55?'var(--accent)':'var(--down)'};font-size:15px;">${ps}</span><div style="font-size:9.5px;color:var(--text3);">PA健康</div>`;})()}</td>
         <td><span class="money ${cls(c.chg)}">${c.now.toFixed(2)}</span><div style="font-size:11px;color:var(--text3);">${fmtChg(c.chg)}</div></td>
         <td style="white-space:normal;min-width:120px;font-size:12px;line-height:1.6;">${(()=>{const w=washoutJudge({position:(num(c.ind&&c.ind.turnover)!=null&&c.ind.turnover<4)?'low':'mid',vr:num(c.ind&&c.ind.vr),chg:num(c.chg),maStatus:(num(c.ind&&c.ind.adx)!=null&&c.ind.adx>=25)?'hold':'below',chipChange:'flat',kline:(num(c.ind&&c.ind.macd)!=null&&c.ind.macd>0)?'shake':'dump'});const col=w.score>=75?'var(--up)':w.score>=55?'var(--accent)':'var(--down)';return `<span class="money" style="color:${col};font-size:14px;">${w.score}</span><div style="font-size:10.5px;color:${col};">${w.verdict}</div>`;})()}</td>
@@ -1284,7 +1331,7 @@ function viewTiers(){
     const rr = (target-entry)/(entry-stop||1);
     return `
       <tr data-code="${c.code}" data-name="${c.name}" class="tr-detail">
-        <td><span class="badge b-tier-swing" style="font-size:11px;">Top${idx+1}</span> <span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);">${c.code}</div></td>
+        <td><span class="badge b-tier-swing" style="font-size:11px;">Top${idx+1}</span> <span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);">${c.code}${fsBadge(c.code)}</div></td>
         <td><span class="money" style="color:var(--accent);font-size:15px;">${swingOpScore(c)}</span><div style="font-size:9.5px;color:var(--text3);">操作分(含位置)</div></td>
         <td>${(()=>{const ps=pa;return `<span class="money" style="color:${ps>=70?'var(--up)':ps>=55?'var(--accent)':'var(--down)'};font-size:15px;">${ps}</span><div style="font-size:9.5px;color:var(--text3);">PA健康</div>`;})()}</td>
         <td><span class="money ${cls(c.chg)}">${c.now.toFixed(2)}</span><div style="font-size:11px;color:var(--text3);">${fmtChg(c.chg)}</div></td>
@@ -1306,7 +1353,7 @@ function viewTiers(){
   const shortRows = SHORT_POOL.map(function(c){
     return `
       <tr data-code="${c.code}" data-name="${c.name}" class="tr-detail">
-        <td><span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);">${c.code}</div></td>
+        <td><span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);">${c.code}${fsBadge(c.code)}</div></td>
         <td><span class="money ${cls(c.chg)}">${c.now.toFixed(2)}</span><div style="font-size:11px;color:var(--text3);">${fmtChg(c.chg)}</div></td>
         <td><span class="money" style="font-size:14px;color:var(--accent);">${c.score}</span><div style="font-size:10.5px;color:var(--text3);">${c.tag}</div></td>
         <td style="min-width:200px;font-size:12px;line-height:1.6;white-space:normal;">${c.note}</td>
@@ -1755,7 +1802,7 @@ function viewSwing(){
     const op = swingOpScore(c); const base = (c.score||60)+(c.tact?3:0); const adj = op-base;
     return `
     <tr data-code="${c.code}" data-name="${c.name}" class="tr-detail">
-      <td><span class="rank">${idx+1}</span><span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);margin-top:1px;">${c.code}</div><div style="margin-top:2px;line-height:1.7;">${c.tag?'<span class="badge '+tagCls+'" style="font-size:10px;padding:1px 5px;">'+c.tag+'</span>':''}${c.trend?'<span class="badge b-wait" style="font-size:10px;padding:1px 5px;background:#EEF2F7;color:#444;">'+c.trend+'</span>':''}${tactTxt}${dupBadge(c.code)}</div></td>
+      <td><span class="rank">${idx+1}</span><span class="money">${c.name}</span><div style="font-size:11px;color:var(--text3);margin-top:1px;">${c.code}</div><div style="margin-top:2px;line-height:1.7;">${c.tag?'<span class="badge '+tagCls+'" style="font-size:10px;padding:1px 5px;">'+c.tag+'</span>':''}${c.trend?'<span class="badge b-wait" style="font-size:10px;padding:1px 5px;background:#EEF2F7;color:#444;">'+c.trend+'</span>':''}${tactTxt}${dupBadge(c.code)}${fsBadge(c.code)}</div></td>
       <td><span class="money" style="color:${op>=80?'var(--up)':op>=60?'var(--accent)':'var(--down)'};font-size:15px;">${op}</span><div style="font-size:10px;color:var(--text3);">质地${base} ${adj>=0?'+':''}${adj}位置调整</div></td>
       <td>${(()=>{const ps=paScoreLite(c);return `<span class="money" style="color:${ps>=70?'var(--up)':ps>=55?'var(--accent)':'var(--down)'};">${ps}</span><div style="font-size:9.5px;color:var(--text3);">PA结构</div>`;})()}</td>
       <td class="money ${cls(c.chg)}">${now.toFixed(2)}</td>
