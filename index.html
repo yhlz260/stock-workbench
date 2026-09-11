@@ -1227,7 +1227,7 @@ function viewTiers(){
   });
   const midRows = TIERS.mid.map(function(m){
     return {code:m.code, name:m.name, tier:m.tier, now:m.now, chg:m.chg, score:m.score,
-      reason:m.reason, ind:m.ind, plan:m.plan,
+      reason:m.reason, ind:m.ind, plan:m.plan||{buy:m.buy,target:m.target,stop:m.stop},
       ext:(m.ind&&m.ind.boll)?('MA20/60 '+m.ind.boll):'—', st:'跟踪中', src:'mid'};
   }).concat(fareastMid);
 
@@ -2645,7 +2645,7 @@ function discAudit(trades,pos){
   return {chase:chase,chaseRate:chaseRate,winRate:winRate,pl:pl,over8:over8,near:near,score:score,total:trades.length,buys:buys.length,sells:sells.length};
 }
 function allPoolStocks(){
-  var arr=[].concat(FAREAST_POOL||[],SWING_POOL||[],SHORT_POOL||[]);
+  var arr=[].concat(FAREAST_POOL||[],SWING_POOL||[],SHORT_POOL||[],NZI_POOL||[],ADX_POOL||[],CCI_POOL||[],FAKEYIN_POOL||[],ONELINE_POOL||[],DIVIDEND_POOL||[],SMALLCAP_POOL||[]);
   if(typeof DAILY!=='undefined'&&DAILY) arr=arr.concat(DAILY);
   return arr;
 }
@@ -2677,16 +2677,41 @@ function addTrade(){
   toast('已记录：'+name+' '+(side==='buy'?'买入':'卖出')+' '+price+(shares?('×'+shares):''));
   render();
 }
+function liveNowOf(code){
+  try{
+    var g=window['v_'+rtCode(code)];
+    if(g){
+      var r=rtParseStr(g);
+      if(r&&r.now>0) return {now:r.now,src:'live'};
+    }
+  }catch(e){}
+  var q=findByCodeOrName(code);
+  if(q&&!isNaN(parseFloat(q.now))&&parseFloat(q.now)>0) return {now:parseFloat(q.now),src:'cache'};
+  return {now:NaN,src:'none'};
+}
+function editShares(code){
+  var trades=loadTrades();
+  var pos=calcPositions(trades).filter(function(p){return p.code===code;})[0];
+  if(!pos){ toast('无该持仓'); return; }
+  var v=prompt('「'+pos.name+'」当前 '+pos.shares+' 股，修改为：', pos.shares);
+  if(v===null||v==='') return;
+  var n=parseFloat(v);
+  if(!n||n<=0){ toast('股数无效'); return; }
+  var delta=n-pos.shares;
+  if(delta===0){ toast('股数未变化'); return; }
+  trades.push({d:ymdNow(),code:code,name:pos.name,side:delta>0?'buy':'sell',price:pos.cost,shares:Math.abs(delta),pos60:pos.pos60,pool:'股数修正',reason:'持仓股数修正 '+pos.shares+'→'+n,gain:delta>0?null:0});
+  saveTrades(trades);
+  toast('已修正：'+pos.name+' 股数 '+pos.shares+' → '+n);
+  render();
+}
 function viewDisc(){
   var trades=loadTrades();
   var pos=calcPositions(trades).map(function(p){
-    var q=findByCodeOrName(p.code);
-    var now=q?parseFloat(q.now):NaN;
-    if(isNaN(now)) now=p.cost;
-    p.now=now;
+    var lv=liveNowOf(p.code);
+    var now=isNaN(lv.now)?p.cost:lv.now;
+    p.now=now; p.src=lv.src;
     p.fl=p.cost>0?((now/p.cost-1)*100):0;
     p.flLoss=Math.max(0,-p.fl);
-    p.hasQ=!!q;
     return p;
   });
   var a=discAudit(trades,pos);
@@ -2698,11 +2723,12 @@ function viewDisc(){
     return '<tr>'+
       '<td><span class="money">'+p.name+'</span><div style="font-size:10.5px;color:var(--text3);">'+p.code+'</div></td>'+
       '<td style="font-size:12px;">'+p.cost.toFixed(2)+'<div style="font-size:10px;color:var(--text3);">成本</div></td>'+
-      '<td><span class="money" style="color:'+fc+';font-size:13px;">'+(p.hasQ?p.now.toFixed(2):(p.now.toFixed(2)+'*'))+'</span><div style="font-size:10px;color:var(--text3);">'+(p.hasQ?'现价':'现价未收录')+'</div></td>'+
+      '<td><span class="money" style="color:'+fc+';font-size:13px;">'+p.now.toFixed(2)+(p.src==='none'?'*':'')+'</span><div style="font-size:10px;color:var(--text3);">'+(p.src==='live'?'实时':(p.src==='cache'?'收盘':'未收录'))+'</div></td>'+
+      '<td><span class="money" style="font-size:13px;">'+p.shares+'</span><div style="margin-top:2px;"><button data-editshares="'+p.code+'" style="background:rgba(140,148,160,.12);color:#5a6270;border:none;border-radius:5px;padding:2px 8px;font-size:10px;cursor:pointer;">✎改</button></div></td>'+
       '<td><span class="money" style="color:'+fc+';font-size:13px;">'+(p.fl>=0?'+':'')+p.fl.toFixed(1)+'%</span></td>'+
       '<td style="white-space:normal;min-width:120px;font-size:11.5px;">'+warn+(arb?arbBadge(arb):'')+(arb&&arb.reason?'<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+arb.reason+'</div>':'')+'</td>'+
       '<td style="font-size:11px;">'+p.pool+'</td>'+
-      '<td><button class="btn-mini" data-tr-sell="'+p.code+'" data-tr-price="'+(p.hasQ?p.now.toFixed(2):'')+'" style="background:rgba(38,148,84,.12);color:#269454;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;">卖出</button></td>'+
+      '<td><button class="btn-mini" data-tr-sell="'+p.code+'" data-tr-price="'+p.now.toFixed(2)+'" style="background:rgba(38,148,84,.12);color:#269454;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;">卖出</button></td>'+
     '</tr>';
   }).join('');
   var flowRows=trades.slice().reverse().slice(0,25).map(function(t){
@@ -2734,9 +2760,9 @@ function viewDisc(){
         '<input id="trReason" placeholder="买入理由 / 卖出原因（无理由会扣纪律分）" style="flex:2 1 180px;min-width:140px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">'+
         '<button id="trSubmit" style="padding:8px 16px;border:none;border-radius:8px;background:linear-gradient(135deg,#9EACEA,#7B8CDE);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">记录</button>'+
       '</div>'+
-      '<div id="trHint" style="font-size:11px;color:var(--text3);margin-top:6px;">输入代码后自动匹配池内名称/现价（未收录股票按成本价显示，标注*）</div>'+
+      '<div id="trHint" style="font-size:11px;color:var(--text3);margin-top:6px;">输入代码后自动匹配名称/现价；股数请填真实数量，或点持仓行「✎改」修正。现价优先实时行情（未收录按成本价，标注*）</div>'+
     '</div></div>'+
-    '<div class="card"><div class="card-hd"><span class="t">当前真实持仓</span><span class="meta">浮亏≥5%黄色预警 · ≥8%绿色触发止损线（未处理将重扣纪律分）</span></div><div class="card-bd" style="padding:0;"><table><thead><tr><th>标的</th><th>成本</th><th>现价</th><th>浮盈亏</th><th>仲裁/风险</th><th>池</th><th></th></tr></thead><tbody>'+(posRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px;">暂无持仓，请先录入交易</td></tr>')+'</tbody></table></div></div>'+
+    '<div class="card"><div class="card-hd"><span class="t">当前真实持仓</span><span class="meta">现价实时优先 · 浮亏≥5%黄色预警 · ≥8%绿色触发止损线</span></div><div class="card-bd" style="padding:0;"><table><thead><tr><th>标的</th><th>成本</th><th>现价</th><th>股数</th><th>浮盈亏</th><th>仲裁/风险</th><th>池</th><th></th></tr></thead><tbody>'+(posRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px;">暂无持仓，请先录入交易</td></tr>')+'</tbody></table></div></div>'+
     '<div class="card"><div class="card-hd"><span class="t">交易流水</span><span class="meta">最近25笔 · 卖出自动计算盈亏</span></div><div class="card-bd" style="padding:0;"><table><thead><tr><th>日期</th><th>标的</th><th>方向</th><th>价格</th><th>股数</th><th>行为标记</th><th>理由</th><th>盈亏</th></tr></thead><tbody>'+(flowRows||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px;">暂无流水</td></tr>')+'</tbody></table></div></div>'+
     '<div class="disclaimer">纪律评分由真实交易流水自动计算，仅用于行为偏差反馈，不构成投资建议。现价优先取池内收盘数据，*表示未收录。</div>'+
   '</div>';
@@ -2779,6 +2805,9 @@ function bind(){
       if(pr) document.getElementById('trPrice').value=pr;
       toast('已填入卖出单：'+c+(pr?(' 现价'+pr):''));
     };
+  });
+  document.querySelectorAll('[data-editshares]').forEach(function(b){
+    b.onclick=function(){ editShares(b.dataset.editshares); };
   });
   const simAuto = document.getElementById('simAuto');
   if(simAuto) simAuto.onclick = ()=>{
