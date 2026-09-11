@@ -567,9 +567,6 @@ function signalBestHold(sigName){
   const s = SIGNAL_BACKTEST[sigName];
   return s ? s.hold : 20;
 }
-// 多信号共振置信度：各信号置信度加权求和，上限100
-function resonanceConfidence(sigNames){
-  
 // ===== P1-2 推荐-跟踪-复盘闭环（2026-09-11 新增）=====
 // 模拟账本：记录每次系统推荐/用户买入，自动跟踪收益，月度归因哪类信号/池子在赚钱
 // localStorage key: spt_rec_ledger_v1
@@ -803,7 +800,9 @@ function viewRecTracker(){
   
   return html;
 }
-if(!sigNames || sigNames.length === 0) return 0;
+// 多信号共振置信度：各信号置信度加权求和，上限100
+function resonanceConfidence(sigNames){
+  if(!sigNames || sigNames.length === 0) return 0;
   let total = 0;
   sigNames.forEach(n => { total += signalConfidence(n); });
   return Math.min(Math.round(total * 0.7), 100);  // 多信号衰减系数0.7
