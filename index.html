@@ -1255,6 +1255,7 @@ function render(){
   else if(r==='disc') m.innerHTML = viewDisc();
   else if(r==='review') m.innerHTML = viewReview();
   else if(r==='guide') m.innerHTML = viewGuide();
+  else if(r==='recTracker') m.innerHTML = viewRecTracker();
   renderNav();
   bind();
 }
@@ -2894,7 +2895,7 @@ function viewQuant(){
 }
 
 // ===== 交互 =====
-/* ===== P0 升级（2026-09-11）：①信号仲裁唯一状态 ②真实交易纪律审计</span><span class='nav-item' data-view='recTracker'>推荐跟踪 ===== */
+/* ===== P0 升级（2026-09-11）：①信号仲裁唯一状态 ②真实交易纪律审计 ===== */
 function arbitrate(c){
   if(!c||!c.code) return null;
   var now=parseFloat(c.now); if(isNaN(now)) return null;
@@ -3288,6 +3289,7 @@ const NAV = [
   {r:'review',l:'复盘中心',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>'},
   {r:'sim',l:'模拟仓对比',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M7 12h2M15 12h2M7 16h2M15 16h2"/></svg>'},
   {r:'disc',l:'纪律审计',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 1.5"/></svg>'},
+  {r:'recTracker',l:'推荐跟踪',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/><circle cx="18" cy="6" r="2"/></svg>'},
   {r:'guide',l:'使用说明',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/></svg>'},
 ];
 document.getElementById('nav').innerHTML = NAV.map(n=>`<div class="nav-item" data-route="${n.r}">${n.svg}${n.l}</div>`).join('');
@@ -3519,7 +3521,7 @@ syncPosIndicators();
 // hash 路由初始化（支持 #trade 直达）
 try{
   const _hr=(location.hash||'').replace('#','');
-  const _routes=['overview','signals','tiers','swing','quant','sim','daily','review','guide'];
+  const _routes=['overview','signals','tiers','swing','quant','sim','daily','review','guide','recTracker','flow','disc'];
   if(_hr && _routes.indexOf(_hr)>=0){ state.route=_hr; }
 }catch(e){}
 // 首次启动：导入默认持仓（远东/桂冠/中曼）
