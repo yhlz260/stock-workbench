@@ -932,6 +932,7 @@ function render(){
   else if(r==='sim') m.innerHTML = viewSim();
   else if(r==='daily') m.innerHTML = viewDaily();
   else if(r==='flow'){ m.innerHTML = viewFlow(); setTimeout(fillFlow,60); }
+  else if(r==='disc') m.innerHTML = viewDisc();
   else if(r==='review') m.innerHTML = viewReview();
   else if(r==='guide') m.innerHTML = viewGuide();
   renderNav();
@@ -1222,7 +1223,7 @@ function viewTiers(){
       ind:{vr:c.vr, boll:fboll, macd:(c.ind&&c.ind.macd)||null, kdj:(c.ind&&c.ind.kdj)||null, cci:(c.ind&&c.ind.cci)||null, adx:(c.ind&&c.ind.adx)||null, wr:(c.ind&&c.ind.wr)||null, turnover:(c.ind&&c.ind.turnover)||null},
       plan:{buy:c.buy, target:c.target, stop:c.stop},
       ext:'250位'+c.pos250+'% · 60位'+c.pos60+'% · '+c.kf,
-      st:c.status, src:'fareast'};
+      st:c.status, src:'fareast', arb:arbitrate(c)};
   });
   const midRows = TIERS.mid.map(function(m){
     return {code:m.code, name:m.name, tier:m.tier, now:m.now, chg:m.chg, score:m.score,
@@ -1244,7 +1245,7 @@ function viewTiers(){
         <td>${(()=>{const ps=c.score;return `<span class="money" style="color:${ps>=70?'var(--up)':ps>=55?'var(--accent)':'var(--down)'};font-size:15px;">${ps}</span><div style="font-size:9.5px;color:var(--text3);">PA健康</div>`;})()}</td>
         <td><span class="money ${cls(c.chg)}">${c.now.toFixed(2)}</span><div style="font-size:11px;color:var(--text3);">${fmtChg(c.chg)}</div></td>
         <td style="white-space:normal;min-width:120px;font-size:12px;line-height:1.6;">${(()=>{const w=washoutJudge({position:(num(c.ind&&c.ind.turnover)!=null&&c.ind.turnover<4)?'low':'mid',vr:num(c.ind&&c.ind.vr),chg:num(c.chg),maStatus:(num(c.ind&&c.ind.adx)!=null&&c.ind.adx>=25)?'hold':'below',chipChange:'flat',kline:(num(c.ind&&c.ind.macd)!=null&&c.ind.macd>0)?'shake':'dump'});const col=w.score>=75?'var(--up)':w.score>=55?'var(--accent)':'var(--down)';return `<span class="money" style="color:${col};font-size:14px;">${w.score}</span><div style="font-size:10.5px;color:${col};">${w.verdict}</div>`;})()}</td>
-        <td style="white-space:normal;min-width:150px;font-size:12px;line-height:1.6;">${c.ext||'—'}<div style="margin-top:4px;">${c.st?`<span class="badge" style="background:rgba(158,172,234,.18);color:#5B6BC0;font-size:10.5px;">${c.st}</span>`:''}</div>
+        <td style="white-space:normal;min-width:150px;font-size:12px;line-height:1.6;">${c.ext||'—'}<div style="margin-top:4px;">${c.st?`<span class="badge" style="background:rgba(158,172,234,.18);color:#5B6BC0;font-size:10.5px;">${c.st}</span>`:''}${arbBadge(c.arb)}</div>
         <div style="margin-top:5px;font-size:10.5px;line-height:1.7;color:var(--text2);">${(()=>{const c3=(typeof CYCLE3!=='undefined')?CYCLE3[c.code]:null;if(!c3)return '';const mc=c3.m==='多头'?'var(--up)':c3.m==='空头'?'var(--down)':'var(--text3)';const wc=c3.w==='吸筹'?'var(--up)':(c3.w.indexOf('派发')>=0?'var(--down)':(c3.w==='放量拉升'?'var(--up)':(c3.w==='缩量阴跌'?'var(--down)':'var(--text3)')));const dc=c3.d==='已到位'?'var(--up)':c3.d==='接近'?'var(--accent)':'var(--text3)';return `月线<span style="color:${mc}">${c3.m}</span>·周线<span style="color:${wc}">${c3.w}</span>·日线<span style="color:${dc}">${c3.d}</span><div style="font-size:10px;color:var(--text3);">主力阶段 ${c3.st}</div>`;})()}</div></td>
         <td style="min-width:240px;white-space:normal;line-height:1.6;color:var(--text2);font-size:12px;">${c.reason}</td>
         <td>
@@ -2558,6 +2559,189 @@ function viewQuant(){
 }
 
 // ===== 交互 =====
+/* ===== P0 升级（2026-09-11）：①信号仲裁唯一状态 ②真实交易纪律审计 ===== */
+function arbitrate(c){
+  if(!c||!c.code) return null;
+  var now=parseFloat(c.now); if(isNaN(now)) return null;
+  var br=parseBuyRange(c.buy);
+  var stop=parseFloat(c.stop), target=parseFloat(String(c.target).split('→')[0]);
+  var pos60=parseFloat(c.pos60); if(isNaN(pos60)) pos60=50;
+  var cci=parseFloat((c.ind&&c.ind.cci)!=null?c.ind.cci:c.cci); if(isNaN(cci)) cci=0;
+  var kdj=parseFloat((c.ind&&c.ind.kdj)!=null?c.ind.kdj:c.kdj); if(isNaN(kdj)) kdj=50;
+  var vr=parseFloat(c.vr); if(isNaN(vr)) vr=1;
+  var chg=parseFloat(c.chg); if(isNaN(chg)) chg=0;
+  var ma20=parseFloat(c.ma20), ma60=parseFloat(c.ma60);
+  var vg=c.vg||null;
+  // ① 止损离场（最高优先级：到止损无条件执行）
+  if(!isNaN(stop)&&stop>0&&now<=stop) return {st:'离场·破止损',cls:'sell',reason:'现价 '+now.toFixed(2)+' ≤ 止损 '+stop.toFixed(2)+'，纪律无条件执行，不摊平不等回本'};
+  // ② 逃顶压制（第二优先级：位置+高位指标回落，压制一切买入信号）
+  var esc=(pos60>=70&&cci>150&&chg<0)||(pos60>=60&&kdj>85&&chg<0);
+  if(esc) return {st:'减仓·逃顶压制',cls:'sell',reason:'60日位置 '+pos60.toFixed(0)+'% 高位 + '+(cci>150?('CCI'+cci.toFixed(0)):('KDJ'+kdj.toFixed(0)))+' 高位回落，逃顶信号优先于买入信号'};
+  // ③ 止盈区（不贪最后一口）
+  if(!isNaN(target)&&target>0&&now>=target*0.97) return {st:'止盈区',cls:'warn',reason:'现价接近目标 '+target.toFixed(2)+'，分批止盈或持有'};
+  // ④ 买入信号共振（低吸/多头/超卖/Vegas/量能）
+  var inBuy=br&&br.lo>0&&now>=br.lo*0.98&&now<=br.hi*1.03;
+  var bull=!isNaN(ma20)&&!isNaN(ma60)&&ma20>ma60&&now>ma20;
+  var oversell=cci<-100||kdj<20;
+  var trend=vg&&(vg.st==='multi'||vg.st==='cross');
+  var vol=vr>1.5;
+  var res=0, rsn=[];
+  if(inBuy){res++;rsn.push('低吸位'+c.buy);}
+  if(bull){res++;rsn.push('均线多头');}
+  if(oversell){res++;rsn.push('超卖回踩');}
+  if(trend){res++;rsn.push('Vegas趋势');}
+  if(vol){res++;rsn.push('量能活跃');}
+  if(res>=3) return {st:'可低吸',cls:'buy',reason:rsn.join(' + ')+'（共振'+res+'项）'};
+  if(res===2) return {st:'关注',cls:'acc',reason:rsn.join(' + ')+'（共振'+res+'项）'};
+  if(inBuy) return {st:'低吸区',cls:'acc',reason:'现价在买入区间 '+c.buy+' 内'};
+  return {st:'观望',cls:'wait',reason:'信号不足，等待右侧确认'};
+}
+function arbBadge(arb){
+  if(!arb) return '';
+  var map={buy:'background:rgba(196,66,66,.92);color:#fff;',sell:'background:rgba(38,148,84,.92);color:#fff;',warn:'background:rgba(224,146,38,.92);color:#fff;',acc:'background:rgba(91,107,192,.88);color:#fff;',wait:'background:rgba(140,148,160,.7);color:#fff;'};
+  return '<span class="badge" style="'+map[arb.cls]+'font-size:10.5px;margin-left:4px;">'+arb.st+'</span>';
+}
+/* ---- 真实交易流水（纪律审计） ---- */
+const TRADE_KEY='spt_trades_v2';
+const SEED_TRADES=[
+  {d:'2026-09-11',code:'002821',name:'凯莱英',side:'buy',price:172.66,shares:1,pos60:55.6,pool:'真实持仓',reason:'创新药放量突破回踩'},
+  {d:'2026-09-11',code:'600176',name:'中国巨石',side:'buy',price:43.6875,shares:1,pos60:26.5,pool:'真实持仓',reason:'电子布涨价低吸埋伏'},
+  {d:'2026-09-11',code:'600396',name:'华电辽能',side:'buy',price:15.407,shares:1,pos60:42.0,pool:'真实持仓',reason:'电力+碳交易'},
+  {d:'2026-09-11',code:'603619',name:'中曼石油',side:'buy',price:24.5,shares:1,pos60:76.7,pool:'真实持仓',reason:'油价暴涨追入'}
+];
+function loadTrades(){
+  try{var raw=localStorage.getItem(TRADE_KEY); if(raw){var t=JSON.parse(raw); if(Array.isArray(t)&&t.length) return t;} }catch(e){}
+  var t=SEED_TRADES.slice(); try{localStorage.setItem(TRADE_KEY,JSON.stringify(t));}catch(e){}
+  return t;
+}
+function saveTrades(t){ try{localStorage.setItem(TRADE_KEY,JSON.stringify(t));}catch(e){} }
+function calcPositions(trades){
+  var pos={}, order=[];
+  trades.forEach(function(t){
+    if(!pos[t.code]){ pos[t.code]={code:t.code,name:t.name,cost:0,shares:0,buyAmt:0,pos60:t.pos60,pool:t.pool}; order.push(t.code); }
+    var p=pos[t.code];
+    if(t.side==='buy'){ p.buyAmt+=t.price*(t.shares||1); p.shares+=(t.shares||1); }
+    else if(t.side==='sell'){ p.shares-=(t.shares||1); if(p.shares<=0){p.shares=0;p.buyAmt=0;} }
+    if(p.shares>0) p.cost=p.buyAmt/p.shares;
+  });
+  return order.map(function(code){ var p=pos[code]; return p.shares>0?p:null; }).filter(Boolean);
+}
+function discAudit(trades,pos){
+  var buys=trades.filter(function(t){return t.side==='buy';});
+  var sells=trades.filter(function(t){return t.side==='sell';});
+  var chase=buys.filter(function(t){return parseFloat(t.pos60)>70;}).length;
+  var chaseRate=buys.length?Math.round(chase/buys.length*100):0;
+  var wins=sells.filter(function(t){return t.gain>0;}).length;
+  var winRate=sells.length?Math.round(wins/sells.length*100):0;
+  var gains=sells.filter(function(t){return t.gain>0;}).map(function(t){return t.gain;});
+  var losses=sells.filter(function(t){return t.gain<=0;}).map(function(t){return t.gain;});
+  var avgWin=gains.length?gains.reduce(function(a,b){return a+b;},0)/gains.length:0;
+  var avgLoss=losses.length?Math.abs(losses.reduce(function(a,b){return a+b;},0)/losses.length):0;
+  var pl=avgLoss>0?avgWin/avgLoss:(avgWin>0?3:0);
+  var over8=pos.filter(function(p){return p.flLoss>8;}).length;
+  var near=pos.filter(function(p){return p.flLoss>=5&&p.flLoss<=8;}).length;
+  var noReason=buys.filter(function(t){return !t.reason;}).length;
+  var score=Math.max(0,Math.min(100,Math.round(100-chase*15-over8*10-near*5-noReason*5)));
+  return {chase:chase,chaseRate:chaseRate,winRate:winRate,pl:pl,over8:over8,near:near,score:score,total:trades.length,buys:buys.length,sells:sells.length};
+}
+function allPoolStocks(){
+  var arr=[].concat(FAREAST_POOL||[],SWING_POOL||[],SHORT_POOL||[]);
+  if(typeof DAILY!=='undefined'&&DAILY) arr=arr.concat(DAILY);
+  return arr;
+}
+function findByCodeOrName(s){
+  var code=String(s).replace(/[^0-9]/g,'');
+  var hit=null;
+  allPoolStocks().forEach(function(c){ if(!hit&&(c.code===code||String(c.name).indexOf(s)>=0)) hit=c; });
+  return hit;
+}
+function addTrade(){
+  var code=document.getElementById('trCode').value.trim();
+  var side=document.getElementById('trSide').value;
+  var price=parseFloat(document.getElementById('trPrice').value);
+  var shares=parseFloat(document.getElementById('trShares').value);
+  var reason=document.getElementById('trReason').value.trim();
+  if(!code){ toast('请填写股票代码'); return; }
+  if(!price||price<=0){ toast('请填写有效成交价'); return; }
+  var q=findByCodeOrName(code);
+  var name=q?q.name:code;
+  var pos60=q?parseFloat(q.pos60):50;
+  var trades=loadTrades();
+  var gain=null;
+  if(side==='sell'){
+    var pos=calcPositions(trades).filter(function(p){return p.code===String(code).replace(/[^0-9]/g,'');});
+    if(pos.length&&pos[0].cost>0) gain=Math.round((price/pos[0].cost-1)*1000)/10;
+  }
+  trades.push({d:ymdNow(),code:String(code).replace(/[^0-9]/g,''),name:name,side:side,price:price,shares:shares||1,pos60:pos60,pool:q?(q.pool||'手动'):'手动',reason:reason,gain:gain});
+  saveTrades(trades);
+  toast('已记录：'+name+' '+(side==='buy'?'买入':'卖出')+' '+price+(shares?('×'+shares):''));
+  render();
+}
+function viewDisc(){
+  var trades=loadTrades();
+  var pos=calcPositions(trades).map(function(p){
+    var q=findByCodeOrName(p.code);
+    var now=q?parseFloat(q.now):NaN;
+    if(isNaN(now)) now=p.cost;
+    p.now=now;
+    p.fl=p.cost>0?((now/p.cost-1)*100):0;
+    p.flLoss=Math.max(0,-p.fl);
+    p.hasQ=!!q;
+    return p;
+  });
+  var a=discAudit(trades,pos);
+  var scoreColor=a.score>=80?'var(--up)':a.score>=60?'var(--accent)':'var(--down)';
+  var posRows=pos.map(function(p){
+    var fc=p.fl>0?'var(--up)':p.fl<0?'var(--down)':'var(--text)';
+    var arb=findByCodeOrName(p.code)?arbitrate(findByCodeOrName(p.code)):null;
+    var warn=(p.flLoss>=8)?'<span class="badge" style="background:rgba(38,148,84,.15);color:#269454;font-size:10px;">超止损线</span>':(p.flLoss>=5?'<span class="badge" style="background:rgba(224,146,38,.15);color:#E09226;font-size:10px;">接近止损</span>':'');
+    return '<tr>'+
+      '<td><span class="money">'+p.name+'</span><div style="font-size:10.5px;color:var(--text3);">'+p.code+'</div></td>'+
+      '<td style="font-size:12px;">'+p.cost.toFixed(2)+'<div style="font-size:10px;color:var(--text3);">成本</div></td>'+
+      '<td><span class="money" style="color:'+fc+';font-size:13px;">'+(p.hasQ?p.now.toFixed(2):(p.now.toFixed(2)+'*'))+'</span><div style="font-size:10px;color:var(--text3);">'+(p.hasQ?'现价':'现价未收录')+'</div></td>'+
+      '<td><span class="money" style="color:'+fc+';font-size:13px;">'+(p.fl>=0?'+':'')+p.fl.toFixed(1)+'%</span></td>'+
+      '<td style="white-space:normal;min-width:120px;font-size:11.5px;">'+warn+(arb?arbBadge(arb):'')+(arb&&arb.reason?'<div style="font-size:10px;color:var(--text3);margin-top:2px;">'+arb.reason+'</div>':'')+'</td>'+
+      '<td style="font-size:11px;">'+p.pool+'</td>'+
+      '<td><button class="btn-mini" data-tr-sell="'+p.code+'" data-tr-price="'+(p.hasQ?p.now.toFixed(2):'')+'" style="background:rgba(38,148,84,.12);color:#269454;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;">卖出</button></td>'+
+    '</tr>';
+  }).join('');
+  var flowRows=trades.slice().reverse().slice(0,25).map(function(t){
+    var tag=t.side==='buy'?'<span class="badge" style="background:rgba(196,66,66,.12);color:#C44242;font-size:10px;">买</span>':'<span class="badge" style="background:rgba(38,148,84,.12);color:#269454;font-size:10px;">卖</span>';
+    var chaseTag=(t.side==='buy'&&parseFloat(t.pos60)>70)?'<span class="badge" style="background:rgba(224,146,38,.15);color:#E09226;font-size:9.5px;">追高'+(t.pos60?(' 60位'+t.pos60+'%'):'')+'</span>':'';
+    var gainTxt=t.gain!=null?('<span class="money" style="color:'+(t.gain>0?'var(--up)':'var(--down)')+';font-size:11px;">'+(t.gain>0?'+':'')+t.gain+'%</span>'):'';
+    return '<tr><td style="font-size:11px;">'+t.d+'</td><td style="font-size:12px;">'+t.name+'<div style="font-size:10px;color:var(--text3);">'+t.code+'</div></td><td>'+tag+'</td><td style="font-size:12px;">'+t.price+'</td><td style="font-size:12px;">'+(t.shares||1)+'</td><td style="font-size:11px;white-space:normal;min-width:100px;">'+chaseTag+'</td><td style="font-size:11px;white-space:normal;max-width:180px;">'+(t.reason||'—')+'</td><td>'+gainTxt+'</td></tr>';
+  }).join('');
+  return '<div class="pg">'+
+    '<div class="pg-hd"><h2>纪律审计 · 真实交易</h2><span class="pg-sub">记录每一笔真实操作 → 系统自动审计行为偏差（追高率/止损线/胜率/盈亏比）</span></div>'+
+    '<div class="grid2">'+
+      '<div class="card" style="background:linear-gradient(135deg,rgba(158,172,234,.16),rgba(158,172,234,.06));">'+
+        '<div class="card-hd"><span class="t">纪律评分</span><span class="meta">100-追高×15 - 超止损持有×10 - 接近止损×5 - 无理由×5</span></div>'+
+        '<div class="card-bd" style="text-align:center;padding:14px;"><div style="font-size:44px;font-weight:800;color:'+scoreColor+';">'+a.score+'</div><div style="font-size:12px;color:var(--text3);margin-top:2px;">'+a.total+' 笔流水 · 买'+a.buys+' 卖'+a.sells+'</div></div>'+
+      '</div>'+
+      '<div class="card"><div class="card-hd"><span class="t">行为偏差指标</span><span class="meta">来自真实交易流水</span></div><div class="card-bd" style="padding:10px;display:flex;flex-wrap:wrap;gap:10px;">'+
+        '<div style="flex:1 1 40%;min-width:100px;padding:8px;background:rgba(224,146,38,.08);border-radius:10px;"><div style="font-size:11px;color:var(--text3);">追高率（60位>70%）</div><div style="font-size:20px;font-weight:700;color:'+(a.chaseRate>30?'var(--down)':(a.chaseRate>0?'var(--accent)':'var(--up)'))+';">'+a.chaseRate+'%<span style="font-size:11px;color:var(--text3);">  '+a.chase+'次</span></div></div>'+
+        '<div style="flex:1 1 40%;min-width:100px;padding:8px;background:rgba(38,148,84,.08);border-radius:10px;"><div style="font-size:11px;color:var(--text3);">胜率（已平仓）</div><div style="font-size:20px;font-weight:700;color:var(--accent);">'+a.winRate+'%</div></div>'+
+        '<div style="flex:1 1 40%;min-width:100px;padding:8px;background:rgba(91,107,192,.08);border-radius:10px;"><div style="font-size:11px;color:var(--text3);">盈亏比（盈/亏）</div><div style="font-size:20px;font-weight:700;color:var(--accent);">'+(a.pl>0?a.pl.toFixed(1):'—')+'</div></div>'+
+        '<div style="flex:1 1 40%;min-width:100px;padding:8px;background:'+(a.over8>0?'rgba(38,148,84,.1)':'rgba(140,148,160,.06)')+';border-radius:10px;"><div style="font-size:11px;color:var(--text3);">持仓风险</div><div style="font-size:16px;font-weight:700;color:'+(a.over8>0?'var(--down)':(a.near>0?'var(--accent)':'var(--up)'))+';">超止损 '+a.over8+' / 接近 '+a.near+'</div></div>'+
+      '</div></div>'+
+    '</div>'+
+    '<div class="card"><div class="card-hd"><span class="t">真实交易录入</span><span class="meta">记录后自动更新持仓与纪律评分（卖出自动计算盈亏）</span></div><div class="card-bd" style="padding:10px;">'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+
+        '<input id="trCode" placeholder="代码，如 002821" style="flex:1 1 120px;min-width:100px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">'+
+        '<select id="trSide" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;"><option value="buy">买入</option><option value="sell">卖出</option></select>'+
+        '<input id="trPrice" type="number" step="0.01" placeholder="成交价" style="flex:0 1 90px;min-width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">'+
+        '<input id="trShares" type="number" step="100" placeholder="股数" style="flex:0 1 90px;min-width:80px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">'+
+        '<input id="trReason" placeholder="买入理由 / 卖出原因（无理由会扣纪律分）" style="flex:2 1 180px;min-width:140px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">'+
+        '<button id="trSubmit" style="padding:8px 16px;border:none;border-radius:8px;background:linear-gradient(135deg,#9EACEA,#7B8CDE);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">记录</button>'+
+      '</div>'+
+      '<div id="trHint" style="font-size:11px;color:var(--text3);margin-top:6px;">输入代码后自动匹配池内名称/现价（未收录股票按成本价显示，标注*）</div>'+
+    '</div></div>'+
+    '<div class="card"><div class="card-hd"><span class="t">当前真实持仓</span><span class="meta">浮亏≥5%黄色预警 · ≥8%绿色触发止损线（未处理将重扣纪律分）</span></div><div class="card-bd" style="padding:0;"><table><thead><tr><th>标的</th><th>成本</th><th>现价</th><th>浮盈亏</th><th>仲裁/风险</th><th>池</th><th></th></tr></thead><tbody>'+(posRows||'<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px;">暂无持仓，请先录入交易</td></tr>')+'</tbody></table></div></div>'+
+    '<div class="card"><div class="card-hd"><span class="t">交易流水</span><span class="meta">最近25笔 · 卖出自动计算盈亏</span></div><div class="card-bd" style="padding:0;"><table><thead><tr><th>日期</th><th>标的</th><th>方向</th><th>价格</th><th>股数</th><th>行为标记</th><th>理由</th><th>盈亏</th></tr></thead><tbody>'+(flowRows||'<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px;">暂无流水</td></tr>')+'</tbody></table></div></div>'+
+    '<div class="disclaimer">纪律评分由真实交易流水自动计算，仅用于行为偏差反馈，不构成投资建议。现价优先取池内收盘数据，*表示未收录。</div>'+
+  '</div>';
+}
+
 function bind(){
   initModal();
   setTimeout(rtStart, 800);
@@ -2577,6 +2761,25 @@ function bind(){
     b.onclick = ()=>{ simSell(b.dataset.simsell, 0); toast('模拟仓已卖出 '+b.dataset.simsell); render(); };
   });
   bindExportImport();
+  // 纪律审计绑定
+  var trSubmit=document.getElementById('trSubmit');
+  if(trSubmit) trSubmit.onclick=function(){ addTrade(); };
+  var trCode=document.getElementById('trCode');
+  if(trCode) trCode.oninput=function(){
+    var v=trCode.value.trim(); if(!v) return;
+    var q=findByCodeOrName(v);
+    var hint=document.getElementById('trHint');
+    if(hint) hint.textContent=q?('匹配：'+q.name+' 现价'+q.now+' · 60日位置'+(q.pos60!=null?q.pos60:'—')+'%'):'未匹配池内股票，将按手动代码记录';
+  };
+  document.querySelectorAll('[data-tr-sell]').forEach(function(b){
+    b.onclick=function(){
+      var c=b.dataset.trSell, pr=b.dataset.trPrice;
+      document.getElementById('trCode').value=c;
+      document.getElementById('trSide').value='sell';
+      if(pr) document.getElementById('trPrice').value=pr;
+      toast('已填入卖出单：'+c+(pr?(' 现价'+pr):''));
+    };
+  });
   const simAuto = document.getElementById('simAuto');
   if(simAuto) simAuto.onclick = ()=>{
     const n = simAutoBuy();
@@ -2720,6 +2923,7 @@ const NAV = [
   {r:'flow',l:'主力资金',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/><path d="M4 21h16"/></svg>'},
   {r:'review',l:'复盘中心',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 3"/></svg>'},
   {r:'sim',l:'模拟仓对比',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M7 12h2M15 12h2M7 16h2M15 16h2"/></svg>'},
+  {r:'disc',l:'纪律审计',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 1.5"/></svg>'},
   {r:'guide',l:'使用说明',svg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/></svg>'},
 ];
 document.getElementById('nav').innerHTML = NAV.map(n=>`<div class="nav-item" data-route="${n.r}">${n.svg}${n.l}</div>`).join('');
