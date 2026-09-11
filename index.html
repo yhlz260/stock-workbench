@@ -807,6 +807,223 @@ function resonanceConfidence(sigNames){
   sigNames.forEach(n => { total += signalConfidence(n); });
   return Math.min(Math.round(total * 0.7), 100);  // 多信号衰减系数0.7
 }
+
+// ===== P2 组合级风控（2026-09-11 新增）=====
+// 1. ATR动态仓位：根据波动率计算建议仓位，而非固定百分比
+// 2. 组合风控：行业集中度上限30%、月回撤>8%降仓提醒
+// 3. 移动止盈：盈利后止损线上移到 最高价-2×ATR
+
+// 计算ATR（14日平均真实波幅）
+function calcATR(klines, period=14){
+  if(!klines || klines.length < period+1) return null;
+  const trs = [];
+  for(let i=1; i<klines.length; i++){
+    const h = parseFloat(klines[i][3]), l = parseFloat(klines[i][4]);
+    const pc = parseFloat(klines[i-1][2]);
+    const tr = Math.max(h-l, Math.abs(h-pc), Math.abs(l-pc));
+    trs.push(tr);
+  }
+  if(trs.length < period) return null;
+  // 简单移动平均
+  const recent = trs.slice(-period);
+  return recent.reduce((a,b)=>a+b,0)/period;
+}
+
+// ATR动态仓位计算
+// 风险预算：单票风险≤1%总资产；止损距离=2×ATR
+// 建议仓位(股数) = (总资产 × 风险比例) / (2×ATR)
+function calcATRPosition(code, totalAsset, riskPct=0.01){
+  const kl = window['_kl_'+code] || null;
+  if(!kl) return {atr:null, suggestedShares:null, riskPerShare:null, note:'暂无K线数据'};
+  const atr = calcATR(kl);
+  if(!atr || atr<=0) return {atr:null, suggestedShares:null, riskPerShare:null, note:'ATR计算失败'};
+  const stopDist = 2 * atr;  // 2倍ATR止损
+  const riskAmount = totalAsset * riskPct;
+  const shares = Math.floor(riskAmount / stopDist / 100) * 100;  // 取整到100股
+  return {
+    atr: atr.toFixed(2),
+    stopDist: stopDist.toFixed(2),
+    riskPerShare: stopDist.toFixed(2),
+    suggestedShares: shares,
+    suggestedValue: (shares * (kl[kl.length-1][2])).toFixed(0),
+    note: `2×ATR止损=${stopDist.toFixed(2)}元，风险${(riskPct*100).toFixed(0)}%总资产`
+  };
+}
+
+// 移动止盈/ATR跟踪止损
+// 盈利后，止损线上移到 持仓期最高价 - 2×ATR
+function calcTrailingStop(code, cost, currentPrice, highSinceEntry){
+  const kl = window['_kl_'+code] || null;
+  if(!kl) return {trailingStop:null, note:'暂无K线数据'};
+  const atr = calcATR(kl);
+  if(!atr) return {trailingStop:null, note:'ATR计算失败'};
+  const pnlPct = (currentPrice - cost) / cost * 100;
+  // 初始止损 = 成本 - 2×ATR
+  const initialStop = cost - 2*atr;
+  // 盈利超过5%后，启动移动止盈
+  if(pnlPct >= 5){
+    const trailingStop = highSinceEntry - 2*atr;
+    const activeStop = Math.max(initialStop, trailingStop);
+    return {
+      trailingStop: activeStop.toFixed(2),
+      initialStop: initialStop.toFixed(2),
+      highSinceEntry: highSinceEntry.toFixed(2),
+      atr: atr.toFixed(2),
+      active: true,
+      note: `移动止盈已启动：最高价${highSinceEntry.toFixed(2)}-2×ATR=${activeStop.toFixed(2)}`
+    };
+  }
+  return {
+    trailingStop: initialStop.toFixed(2),
+    initialStop: initialStop.toFixed(2),
+    atr: atr.toFixed(2),
+    active: false,
+    note: `初始止损=成本-2×ATR=${initialStop.toFixed(2)}，盈利5%后启动移动止盈`
+  };
+}
+
+// 组合风控分析
+function portfolioRiskAnalysis(positions, totalAsset){
+  if(!positions || positions.length === 0) return {industryConcentration:{}, maxIndustryPct:0, monthlyDD:0, warnings:[], advice:'暂无持仓'};
+  
+  // 行业集中度（简化：根据代码前缀和名称估算行业）
+  const industryMap = {};
+  positions.forEach(p => {
+    const ind = p.industry || estimateIndustry(p.code, p.name);
+    if(!industryMap[ind]) industryMap[ind] = {value:0, count:0, stocks:[]};
+    const value = (p.now || p.cost) * (p.shares || 0);
+    industryMap[ind].value += value;
+    industryMap[ind].count += 1;
+    industryMap[ind].stocks.push(p.name);
+  });
+  
+  const totalValue = Object.values(industryMap).reduce((a,b)=>a+b.value,0) || 1;
+  let maxIndustry = '', maxPct = 0;
+  Object.entries(industryMap).forEach(([ind, data]) => {
+    data.pct = (data.value/totalValue*100).toFixed(1);
+    if(data.value/totalValue > maxPct){
+      maxPct = data.value/totalValue;
+      maxIndustry = ind;
+    }
+  });
+  
+  // 月回撤估算（简化：根据持仓的最大回撤估算）
+  let monthlyDD = 0;
+  positions.forEach(p => {
+    if(p.maxDD && p.weight) monthlyDD += Math.abs(p.maxDD) * p.weight;
+  });
+  if(monthlyDD === 0) monthlyDD = 5; // 默认估算
+  
+  // 风控警告
+  const warnings = [];
+  if(maxPct > 0.30){
+    warnings.push(`行业集中度超限：${maxIndustry}占比${(maxPct*100).toFixed(1)}%（上限30%），建议分散`);
+  }
+  if(monthlyDD > 8){
+    warnings.push(`组合月回撤${monthlyDD.toFixed(1)}%>8%，触发降仓提醒，建议降至半仓以下`);
+  }
+  if(positions.length > 8){
+    warnings.push(`持仓数量${positions.length}只>8只，管理难度增加，建议精简到5-8只`);
+  }
+  
+  // 总仓位建议
+  const gate = typeof MARKET_GATE !== 'undefined' ? MARKET_GATE : {regime:'未知', totalCap:'50-60%'};
+  let advice = '';
+  if(gate.regime && gate.regime.indexOf('超跌')>=0){
+    advice = '超跌窗口：可进攻加仓，但单票仓位用ATR动态计算，避免集中';
+  } else if(gate.regime && gate.regime.indexOf('高位')>=0){
+    advice = '高位防守：降仓不追高，移动止盈保护利润';
+  } else {
+    advice = '中性结构市：维持仓位结构，按纪律执行';
+  }
+  
+  return {
+    industryConcentration: industryMap,
+    maxIndustry: maxIndustry,
+    maxIndustryPct: (maxPct*100).toFixed(1),
+    monthlyDD: monthlyDD.toFixed(1),
+    warnings: warnings,
+    advice: advice,
+    positionCount: positions.length,
+    totalValue: totalValue.toFixed(0)
+  };
+}
+
+// 估算行业（简化版）
+function estimateIndustry(code, name){
+  const c = String(code);
+  if(c.indexOf('600')===0 || c.indexOf('601')===0 || c.indexOf('603')===0 || c.indexOf('605')===0){
+    if(name.indexOf('银行')>=0) return '银行';
+    if(name.indexOf('证券')>=0 || name.indexOf('金融')>=0) return '非银金融';
+    if(name.indexOf('医药')>=0 || name.indexOf('生物')>=0 || name.indexOf('医疗')>=0) return '医药生物';
+    if(name.indexOf('电子')>=0 || name.indexOf('科技')>=0 || name.indexOf('半导体')>=0) return '电子';
+    if(name.indexOf('电力')>=0 || name.indexOf('能源')>=0 || name.indexOf('石油')>=0) return '公用事业/能源';
+    if(name.indexOf('材料')>=0 || name.indexOf('化工')>=0 || name.indexOf('有色')>=0) return '化工/材料';
+    return '沪市主板';
+  }
+  if(c.indexOf('000')===0 || c.indexOf('001')===0 || c.indexOf('002')===0 || c.indexOf('003')===0){
+    if(name.indexOf('医药')>=0 || name.indexOf('生物')>=0 || name.indexOf('医疗')>=0) return '医药生物';
+    if(name.indexOf('电子')>=0 || name.indexOf('科技')>=0 || name.indexOf('半导体')>=0) return '电子';
+    if(name.indexOf('电力')>=0 || name.indexOf('能源')>=0) return '公用事业';
+    if(name.indexOf('材料')>=0 || name.indexOf('化工')>=0) return '化工/材料';
+    return '深市主板';
+  }
+  if(c.indexOf('300')===0 || c.indexOf('301')===0) return '创业板';
+  if(c.indexOf('688')===0) return '科创板';
+  return '其他';
+}
+
+// 渲染组合风控卡
+function viewPortfolioRisk(){
+  const positions = (typeof state !== 'undefined' && state.positions) ? state.positions : [];
+  const totalAsset = (typeof state !== 'undefined' && state.totalAsset) ? state.totalAsset : 500000;
+  const risk = portfolioRiskAnalysis(positions, totalAsset);
+  
+  let html = '<div class="card"><div class="card-hd"><span class="t">组合风控 · P2级</span><span class="meta">ATR动态仓位+行业集中度+移动止盈</span></div><div class="card-bd">';
+  
+  // 风控指标
+  html += '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;">';
+  html += `<div style="flex:1;min-width:100px;"><div style="font-size:11px;color:var(--text3);">持仓数量</div><div style="font-size:20px;font-weight:600;">${risk.positionCount}只</div></div>`;
+  html += `<div style="flex:1;min-width:100px;"><div style="font-size:11px;color:var(--text3);">最大行业占比</div><div style="font-size:20px;font-weight:600;color:${parseFloat(risk.maxIndustryPct)>30?'var(--down)':'var(--up)'};">${risk.maxIndustryPct}%</div><div style="font-size:10px;color:var(--text3);">${risk.maxIndustry}</div></div>`;
+  html += `<div style="flex:1;min-width:100px;"><div style="font-size:11px;color:var(--text3);">估算月回撤</div><div style="font-size:20px;font-weight:600;color:${parseFloat(risk.monthlyDD)>8?'var(--down)':'var(--up)'};">${risk.monthlyDD}%</div></div>`;
+  html += `<div style="flex:1;min-width:100px;"><div style="font-size:11px;color:var(--text3);">持仓市值</div><div style="font-size:20px;font-weight:600;">${(risk.totalValue/10000).toFixed(1)}万</div></div>`;
+  html += '</div>';
+  
+  // 风控警告
+  if(risk.warnings.length > 0){
+    html += '<div style="margin-bottom:12px;padding:10px 12px;background:rgba(234,102,104,.08);border-radius:8px;border-left:3px solid var(--down);">';
+    html += '<div style="font-size:12px;font-weight:600;color:var(--down);margin-bottom:6px;">⚠️ 风控警告</div>';
+    risk.warnings.forEach(w => {
+      html += `<div style="font-size:11.5px;color:var(--text2);line-height:1.7;">• ${w}</div>`;
+    });
+    html += '</div>';
+  }
+  
+  // 操作建议
+  html += `<div style="padding:10px 12px;background:rgba(158,172,234,.08);border-radius:8px;border-left:3px solid var(--accent);">`;
+  html += `<div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:4px;">📋 操作建议</div>`;
+  html += `<div style="font-size:11.5px;color:var(--text2);line-height:1.7;">${risk.advice}</div>`;
+  html += '</div>';
+  
+  // 行业分布
+  if(Object.keys(risk.industryConcentration).length > 0){
+    html += '<div style="margin-top:14px;"><div style="font-size:12px;font-weight:600;margin-bottom:8px;">行业分布</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    Object.entries(risk.industryConcentration).sort((a,b)=>b[1].value-a[1].value).forEach(([ind, data]) => {
+      const pct = parseFloat(data.pct);
+      html += `<div style="padding:6px 10px;background:${pct>30?'rgba(234,102,104,.1)':'rgba(148,216,195,.1)'};border-radius:6px;min-width:80px;">
+        <div style="font-size:11px;color:var(--text2);">${ind}</div>
+        <div style="font-size:13px;font-weight:600;color:${pct>30?'var(--down)':'var(--text)'};">${data.pct}%</div>
+        <div style="font-size:9px;color:var(--text3);">${data.count}只</div>
+      </div>`;
+    });
+    html += '</div></div>';
+  }
+  
+  html += '</div></div>';
+  return html;
+}
+
 // ===== P0-3 大盘择时总闸门（2026-09-11 新增）=====
 // 逻辑：MARKET_TIMING.state 决定总仓倾向与信号过滤
 // 超跌(pos<0.40)：可进攻加仓，埋伏池优先低吸，波段池可介入，短线池放量突破
