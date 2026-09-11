@@ -775,7 +775,7 @@ function viewRecTracker(){
         <td><span class="money down">${(r.maxLoss||0).toFixed(2)}%</span></td>
         <td>${r.holdDays}天</td>
         <td style="font-size:10px;color:var(--text3);max-width:120px;">${(r.signals||[]).join(', ')||'—'}</td>
-        <td><button class="btn sell sm" onclick="closeRecommendation('${r.id}', ${r.currentPrice.toFixed(2)}); renderView('recTracker');">平仓</button></td>
+        <td><button class="btn sell sm" onclick="closeRecommendation('${r.id}', ${r.currentPrice.toFixed(2)}); render();">平仓</button></td>
       </tr>`;
     });
     html += '</tbody></table>';
