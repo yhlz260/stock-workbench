@@ -3303,7 +3303,9 @@ function viewDisc(){
         '<div style="flex:1 1 40%;min-width:100px;padding:8px;background:'+(a.over8>0?'rgba(38,148,84,.1)':'rgba(140,148,160,.06)')+';border-radius:10px;"><div style="font-size:11px;color:var(--text3);">持仓风险</div><div style="font-size:16px;font-weight:700;color:'+(a.over8>0?'var(--down)':(a.near>0?'var(--accent)':'var(--up)'))+';">超止损 '+a.over8+' / 接近 '+a.near+'</div></div>'+
       '</div></div>'+
     '</div>'+
-    '<div class="card"><div class="card-hd"><span class="t">真实交易录入</span><span class="meta">记录后自动更新持仓与纪律评分（卖出自动计算盈亏）</span></div><div class="card-bd" style="padding:10px;">'+
+        // P2组合风控卡
+    viewPortfolioRisk()+
+'<div class="card"><div class="card-hd"><span class="t">真实交易录入</span><span class="meta">记录后自动更新持仓与纪律评分（卖出自动计算盈亏）</span></div><div class="card-bd" style="padding:10px;">'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'+
         '<input id="trCode" placeholder="代码，如 002821" style="flex:1 1 120px;min-width:100px;padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;">'+
         '<select id="trSide" style="padding:8px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:#fff;"><option value="buy">买入</option><option value="sell">卖出</option></select>'+
