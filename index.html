@@ -1158,7 +1158,204 @@ const REGIME = {
   limitUp: 45,
   limitDown: 8,
   breakRate: 24.6,
-};
+}
+
+// ===== P3 增强项（2026-09-11 新增）=====
+// 1. 主力资金流验证：MAIN_FUND数据结构（由定时任务拉取填充）
+// 2. 结构化综合研判：技术面+基本面+事件面+主力资金，数据由系统客观计算，LLM只做汇总
+
+// 主力资金数据（占位，由每日定时任务拉取东方财富/同花顺主力资金数据填充）
+// 格式：{code: {netInflow: 主力净流入(万), netInflowPct: 净流入占比, superLarge: 超大单, large: 大单, medium: 中单, small: 小单, date: 'YYYY-MM-DD'}}
+const MAIN_FUND = {};
+
+// 获取主力资金标签
+function fundBadge(code){
+  const f = MAIN_FUND[code];
+  if(!f) return '<span class="badge" style="background:rgba(158,172,234,.1);color:var(--text3);font-size:10px;">资金待更新</span>';
+  const net = f.netInflow || 0;
+  if(net > 5000) return '<span class="badge" style="background:rgba(38,148,84,.15);color:#269454;font-size:10px;">主力大幅流入</span>';
+  if(net > 1000) return '<span class="badge" style="background:rgba(38,148,84,.1);color:#269454;font-size:10px;">主力净流入</span>';
+  if(net < -5000) return '<span class="badge" style="background:rgba(196,66,66,.15);color:#C44242;font-size:10px;">主力大幅流出</span>';
+  if(net < -1000) return '<span class="badge" style="background:rgba(196,66,66,.1);color:#C44242;font-size:10px;">主力净流出</span>';
+  return '<span class="badge" style="background:rgba(140,148,160,.1);color:var(--text3);font-size:10px;">资金中性</span>';
+}
+
+// 结构化综合研判（P3核心）
+// 输入：code, name, 可选的技术面/基本面/事件面数据
+// 输出：综合评分(0-100) + 各维度评分 + 研判结论
+// 原则：所有数据由系统客观计算，LLM只做汇总，不做数据计算
+function comprehensiveAnalysis(code, name, opts){
+  opts = opts || {};
+  
+  // ===== 维度1：技术面（0-30分）=====
+  let techScore = 15;
+  let techDetails = [];
+  
+  // 从三池数据中获取技术指标
+  const poolData = findByCodeOrName(code);
+  if(poolData){
+    const ind = poolData.ind || {};
+    // MACD金叉/拐头 +5
+    if(ind.macd > 0){ techScore += 3; techDetails.push('MACD金叉'); }
+    // KDJ低位金叉 +3
+    if(ind.kdj != null && ind.kdj < 30){ techScore += 2; techDetails.push('KDJ低位'); }
+    // CCI>100强势 +3
+    if(ind.cci > 100){ techScore += 3; techDetails.push('CCI强势'); }
+    // ADX>25趋势明确 +3
+    if(ind.adx >= 25){ techScore += 2; techDetails.push('ADX趋势'); }
+    // 均线多头（MA20>MA60）+4
+    if(poolData.ma20 && poolData.ma60 && poolData.ma20 > poolData.ma60){ techScore += 4; techDetails.push('均线多头'); }
+    // 60日位置低位（<40）+5
+    if(poolData.pos60 != null && poolData.pos60 < 40){ techScore += 5; techDetails.push('60日低位'); }
+    // 量比>1.5放量 +3
+    if(poolData.vr > 1.5){ techScore += 3; techDetails.push('放量'); }
+    // Vegas多头 +3
+    if(poolData.vg && poolData.vg.st === 'multi'){ techScore += 3; techDetails.push('Vegas多头'); }
+    techScore = Math.min(techScore, 30);
+  }
+  
+  // ===== 维度2：基本面（0-25分）=====
+  let fundScore = 12;
+  let fundDetails = [];
+  
+  const fs = FUNDAMENTAL_SCREEN ? FUNDAMENTAL_SCREEN[code] : null;
+  if(fs){
+    // 净利正增长 +5
+    if(fs.netProfitGrowth != null && fs.netProfitGrowth > 0){ fundScore += 5; fundDetails.push('净利正增长'); }
+    // 经营现金流为正 +4
+    if(fs.operatingCashFlow > 0){ fundScore += 4; fundDetails.push('现金流正'); }
+    // 资产负债率合理（<60%）+3
+    if(fs.debtRatio != null && fs.debtRatio < 60){ fundScore += 3; fundDetails.push('负债率合理'); }
+    // 质押比例低（<30%）+3
+    if(fs.pledgeRatio != null && fs.pledgeRatio < 30){ fundScore += 3; fundDetails.push('质押低'); }
+    // 商誉/净资产低（<20%）+3
+    if(fs.goodwillRatio != null && fs.goodwillRatio < 20){ fundScore += 3; fundDetails.push('商誉低'); }
+    // 硬排除 -10
+    if(fs.hardBlock){ fundScore -= 10; fundDetails.push('⚠️排雷硬排除'); }
+    fundScore = Math.max(0, Math.min(fundScore, 25));
+  } else {
+    fundDetails.push('基本面数据待更新');
+  }
+  
+  // ===== 维度3：事件面（0-20分）=====
+  let eventScore = 10;
+  let eventDetails = [];
+  
+  // 未来60日大额解禁 -5
+  // 重要股东减持 -5
+  // 业绩预告利好 +5
+  // 研报上调 +3
+  // 这些数据由定时任务拉取公告填充，目前占位
+  eventDetails.push('事件面数据待更新');
+  
+  // ===== 维度4：主力资金（0-15分）=====
+  let fundFlowScore = 7;
+  let fundFlowDetails = [];
+  
+  const mf = MAIN_FUND[code];
+  if(mf){
+    if(mf.netInflow > 5000){ fundFlowScore += 8; fundFlowDetails.push('主力大幅流入'); }
+    else if(mf.netInflow > 1000){ fundFlowScore += 5; fundFlowDetails.push('主力净流入'); }
+    else if(mf.netInflow < -5000){ fundFlowScore -= 8; fundFlowDetails.push('主力大幅流出'); }
+    else if(mf.netInflow < -1000){ fundFlowScore -= 5; fundFlowDetails.push('主力净流出'); }
+    fundFlowScore = Math.max(0, Math.min(fundFlowScore, 15));
+  } else {
+    fundFlowDetails.push('资金数据待更新');
+  }
+  
+  // ===== 维度5：信号共振（0-10分）=====
+  let signalScore = 5;
+  let signalDetails = [];
+  
+  if(poolData && poolData.kf){
+    const signalMatch = poolData.kf.match(/信号(\d+)/);
+    if(signalMatch){
+      const sigCount = parseInt(signalMatch[1]);
+      signalScore = Math.min(sigCount * 2, 10);
+      signalDetails.push(`${sigCount}条信号共振`);
+    }
+  }
+  
+  // ===== 综合评分 =====
+  const totalScore = techScore + fundScore + eventScore + fundFlowScore + signalScore;
+  
+  // 研判结论（基于评分，客观规则）
+  let conclusion, level;
+  if(totalScore >= 75){
+    level = '强烈关注';
+    conclusion = '多维度共振，技术面+基本面+资金面均向好，可重点关注';
+  } else if(totalScore >= 60){
+    level = '积极关注';
+    conclusion = '多数维度向好，存在结构性机会，可纳入观察池';
+  } else if(totalScore >= 45){
+    level = '中性观察';
+    conclusion = '多维度分化，需等待更明确的信号，暂不急于介入';
+  } else if(totalScore >= 30){
+    level = '谨慎观望';
+    conclusion = '多数维度偏弱，存在风险因素，建议回避或等待';
+  } else {
+    level = '回避';
+    conclusion = '多维度走弱，风险较大，建议回避';
+  }
+  
+  return {
+    totalScore: totalScore,
+    level: level,
+    conclusion: conclusion,
+    dimensions: {
+      tech: {score: techScore, max: 30, details: techDetails},
+      fundamental: {score: fundScore, max: 25, details: fundDetails},
+      event: {score: eventScore, max: 20, details: eventDetails},
+      fundFlow: {score: fundFlowScore, max: 15, details: fundFlowDetails},
+      signal: {score: signalScore, max: 10, details: signalDetails}
+    },
+    timestamp: new Date().toISOString().slice(0,10)
+  };
+}
+
+// 渲染综合研判卡
+function viewComprehensiveAnalysis(code, name){
+  const result = comprehensiveAnalysis(code, name);
+  const scoreColor = result.totalScore >= 60 ? 'var(--up)' : result.totalScore >= 45 ? 'var(--accent)' : 'var(--down)';
+  
+  let html = '<div class="card"><div class="card-hd"><span class="t">综合研判 · P3级</span><span class="meta">技术面+基本面+事件面+资金面+信号，数据客观计算</span></div><div class="card-bd">';
+  
+  // 综合评分
+  html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">';
+  html += `<div style="text-align:center;"><div style="font-size:36px;font-weight:800;color:${scoreColor};">${result.totalScore}</div><div style="font-size:11px;color:var(--text3);">综合评分/100</div></div>`;
+  html += `<div style="flex:1;"><div style="font-size:14px;font-weight:600;margin-bottom:4px;">${result.level}</div><div style="font-size:12px;color:var(--text2);line-height:1.6;">${result.conclusion}</div></div>`;
+  html += '</div>';
+  
+  // 五维度评分条
+  html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+  const dims = [
+    {key:'tech', label:'技术面', color:'#9EACEA'},
+    {key:'fundamental', label:'基本面', color:'#94D8C3'},
+    {key:'event', label:'事件面', color:'#E1B98F'},
+    {key:'fundFlow', label:'资金面', color:'#F4B393'},
+    {key:'signal', label:'信号共振', color:'#DEBEF8'}
+  ];
+  dims.forEach(d => {
+    const dim = result.dimensions[d.key];
+    const pct = (dim.score / dim.max * 100).toFixed(0);
+    html += `<div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:60px;font-size:11px;color:var(--text2);">${d.label}</div>
+      <div style="flex:1;height:8px;background:rgba(0,0,0,.05);border-radius:4px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${d.color};border-radius:4px;"></div>
+      </div>
+      <div style="width:40px;text-align:right;font-size:11px;font-weight:600;">${dim.score}/${dim.max}</div>
+    </div>`;
+    if(dim.details.length > 0){
+      html += `<div style="font-size:10px;color:var(--text3);margin-left:68px;margin-top:-4px;">${dim.details.join(' · ')}</div>`;
+    }
+  });
+  html += '</div>';
+  
+  html += '</div></div>';
+  return html;
+}
+
+;
 function judgeRegime(){
   const R = REGIME;
   const upRatio = R.breadth;
